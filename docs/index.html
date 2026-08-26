@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF to JPEG Converter</title>
+
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs"
+        type="module">
+    </script>
+</head>
+
+<body>
+
+    <div>
+
+        <div id="dropZone">
+
+            <input
+                type="file"
+                id="fileInput"
+                accept="application/pdf,.pdf"
+            >
+
+            <label for="fileInput">
+                Choose a PDF file
+            </label>
+
+            <span> or drag it here</span>
+
+        </div>
+
+        <div id="loading" hidden>
+            Converting pages...
+        </div>
+
+        <div id="errorMessage" hidden></div>
+
+        <div id="outputGrid"></div>
+
+    </div>
+
+    <script type="module">
+
+        import * as pdfjsLib from
+            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs';
+
+        pdfjsLib.GlobalWorkerOptions.workerSrc =
+            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
+
+        const fileInput =
+            document.getElementById('fileInput');
+
+        const dropZone =
+            document.getElementById('dropZone');
+
+        const loading =
+            document.getElementById('loading');
+
+        const outputGrid =
+            document.getElementById('outputGrid');
+
+        const errorMessage =
+            document.getElementById('errorMessage');
+
+        dropZone.addEventListener('dragover', (event) => {
+
+            event.preventDefault();
+
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+
+        });
+
+        dropZone.addEventListener('drop', (event) => {
+
+            event.preventDefault();
+
+            const file =
+                event.dataTransfer.files[0];
+
+            if (!file) {
+                return;
+            }
+
+            if (
+                file.type !== 'application/pdf' &&
+                !file.name.toLowerCase().endsWith('.pdf')
+            ) {
+
+                showError('Please select a PDF file.');
+
+                return;
+            }
+
+            processPDF(file);
+
+        });
+
+        fileInput.addEventListener('change', (event) => {
+
+            const file =
+                event.target.files[0];
+
+            if (!file) {
+                return;
+            }
+
+            if (
+                file.type !== 'application/pdf' &&
+                !file.name.toLowerCase().endsWith('.pdf')
+            ) {
+
+                showError('Please select a PDF file.');
+
+                return;
+            }
+
+            processPDF(file);
+
+        });
+
+        async function processPDF(file) {
+
+            loading.hidden = false;
+
+            errorMessage.hidden = true;
+
+            outputGrid.innerHTML = '';
+
+            try {
+
+                const arrayBuffer =
+                    await file.arrayBuffer();
+
+                const pdf =
+                    await pdfjsLib.getDocument({
+                        data: arrayBuffer
+                    }).promise;
+
+                for (
+                    let pageNum = 1;
+                    pageNum <= pdf.numPages;
+                    pageNum++
+                ) {
+
+                    const page =
+                        await pdf.getPage(pageNum);
+
+                    const scale = 2;
+
+                    const viewport =
+                        page.getViewport({
+                            scale: scale
+                        });
+
+                    const canvas =
+                        document.createElement('canvas');
+
+                    const context =
+                        canvas.getContext('2d');
+
+                    canvas.width =
+                        Math.ceil(viewport.width);
+
+                    canvas.height =
+                        Math.ceil(viewport.height);
+
+                    await page.render({
+
+                        canvasContext: context,
+
+                        viewport: viewport
+
+                    }).promise;
+
+                    const jpegUrl =
+                        canvas.toDataURL(
+                            'image/jpeg',
+                            0.9
+                        );
+
+                    createImageCard(
+                        jpegUrl,
+                        pageNum,
+                        file.name
+                    );
+
+                    canvas.width = 1;
+                    canvas.height = 1;
+
+                }
+
+            } catch (error) {
+
+                console.error(
+                    'PDF conversion error:',
+                    error
+                );
+
+                showError(
+                    'Unable to process this PDF. Please make sure the file is valid.'
+                );
+
+            } finally {
+
+                loading.hidden = true;
+
+            }
+
+        }
+
+        function createImageCard(
+            jpegUrl,
+            pageNum,
+            originalName
+        ) {
+
+            const card =
+                document.createElement('div');
+
+            const img =
+                document.createElement('img');
+
+            img.src = jpegUrl;
+
+            img.alt =
+                `Page ${pageNum}`;
+
+            img.loading = 'lazy';
+
+            const downloadBtn =
+                document.createElement('a');
+
+            downloadBtn.href =
+                jpegUrl;
+
+            const baseName =
+                originalName.replace(
+                    /\.pdf$/i,
+                    ''
+                );
+
+            downloadBtn.download =
+                `${baseName}_page_${pageNum}.jpg`;
+
+            downloadBtn.textContent =
+                `Download Page ${pageNum}`;
+
+            card.appendChild(img);
+
+            card.appendChild(
+                document.createElement('br')
+            );
+
+            card.appendChild(downloadBtn);
+
+            outputGrid.appendChild(card);
+
+        }
+
+        function showError(message) {
+
+            errorMessage.textContent =
+                message;
+
+            errorMessage.hidden =
+                false;
+
+        }
+
+    </script>
+
+</body>
+</html>
